@@ -1,0 +1,30 @@
+{
+  "model_name": "MLR_GALAXY_all",
+  "dataset": "dataset_GALAXY",
+  "feature_set": "all_features",
+  "n_features": 13,
+  "features": ["alpha", "delta", "u", "g", "r", "i", "z", "run_ID", "cam_col", "field_ID", "plate", "MJD", "fiber_ID"],
+  "metrics": {
+    "r2": 0.7385,
+    "adj_r2": 0.7384,
+    "rmse": 0.1319,
+    "mae": 0.0812
+  },
+  "coefficients": {
+    "b0_intercept": -1.1405,
+    "b1_alpha": -0,
+    "b2_delta": -0.0005,
+    "b3_u": -0.0049,
+    "b4_g": 0.0249,
+    "b5_r": 0.1365,
+    "b6_i": -0.0279,
+    "b7_z": -0.0399,
+    "b8_run_ID": -3.24e-06,
+    "b9_cam_col": 0.0002,
+    "b10_field_ID": -0,
+    "b11_plate": 0,
+    "b12_MJD": -5.73e-06,
+    "b13_fiber_ID": -7.03e-06
+  },
+  "equation": "redshift = -1.14054016 - 0.00004157 * alpha - 0.00050729 * delta - 0.00492669 * u + 0.02486693 * g + 0.13650824 * r - 0.02794220 * i - 0.03994920 * z - 0.00000324 * run_ID + 0.00015817 * cam_col - 0.00001497 * field_ID + 0.00002064 * plate - 0.00000573 * MJD - 0.00000703 * fiber_ID"
+}

@@ -1,0 +1,22 @@
+{
+  "model_name": "MLR_clean_5band",
+  "dataset": "dataset_clean",
+  "feature_set": "5band",
+  "n_features": 5,
+  "features": ["u", "g", "r", "i", "z"],
+  "metrics": {
+    "r2": 0.2805,
+    "adj_r2": 0.2804,
+    "rmse": 0.6147,
+    "mae": 0.3659
+  },
+  "coefficients": {
+    "b0_intercept": -2.9828,
+    "b1_u": -0.0331,
+    "b2_g": -0.0676,
+    "b3_r": -0.0226,
+    "b4_i": 0.2731,
+    "b5_z": 0.0489
+  },
+  "equation": "redshift = -2.98275173 - 0.03310654 * u - 0.06756917 * g - 0.02255429 * r + 0.27305967 * i + 0.04894192 * z"
+}

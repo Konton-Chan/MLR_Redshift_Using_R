@@ -1,0 +1,30 @@
+{
+  "model_name": "MLR_STAR_all",
+  "dataset": "dataset_STAR",
+  "feature_set": "all_features",
+  "n_features": 13,
+  "features": ["alpha", "delta", "u", "g", "r", "i", "z", "run_ID", "cam_col", "field_ID", "plate", "MJD", "fiber_ID"],
+  "metrics": {
+    "r2": 0.0625,
+    "adj_r2": 0.0618,
+    "rmse": 0.0004,
+    "mae": 0.0003
+  },
+  "coefficients": {
+    "b0_intercept": -0.001,
+    "b1_alpha": -6.1e-07,
+    "b2_delta": -2.97e-06,
+    "b3_u": -1.7e-06,
+    "b4_g": 0,
+    "b5_r": -2.9e-06,
+    "b6_i": -0,
+    "b7_z": -7.94e-06,
+    "b8_run_ID": -3e-08,
+    "b9_cam_col": 5.7e-06,
+    "b10_field_ID": -5e-08,
+    "b11_plate": -1e-08,
+    "b12_MJD": 2e-08,
+    "b13_fiber_ID": 1e-08
+  },
+  "equation": "redshift = -0.00095049 - 0.00000061 * alpha - 0.00000297 * delta - 0.00000170 * u + 0.00004874 * g - 0.00000290 * r - 0.00004225 * i - 0.00000794 * z - 0.00000003 * run_ID + 0.00000570 * cam_col - 0.00000005 * field_ID - 0.00000001 * plate + 0.00000002 * MJD + 0.00000001 * fiber_ID"
+}

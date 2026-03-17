@@ -1,0 +1,22 @@
+{
+  "model_name": "MLR_STAR_5band",
+  "dataset": "dataset_STAR",
+  "feature_set": "5band",
+  "n_features": 5,
+  "features": ["u", "g", "r", "i", "z"],
+  "metrics": {
+    "r2": 0.0139,
+    "adj_r2": 0.0136,
+    "rmse": 0.0005,
+    "mae": 0.0003
+  },
+  "coefficients": {
+    "b0_intercept": 0,
+    "b1_u": 5.2e-07,
+    "b2_g": 0.0001,
+    "b3_r": -8.15e-06,
+    "b4_i": -0,
+    "b5_z": -6.66e-06
+  },
+  "equation": "redshift = 0.00004526 + 0.00000052 * u + 0.00005007 * g - 0.00000815 * r - 0.00004721 * i - 0.00000666 * z"
+}

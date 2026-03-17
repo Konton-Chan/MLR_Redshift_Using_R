@@ -1,0 +1,30 @@
+{
+  "model_name": "MLR_QSO_all",
+  "dataset": "dataset_QSO",
+  "feature_set": "all_features",
+  "n_features": 13,
+  "features": ["alpha", "delta", "u", "g", "r", "i", "z", "run_ID", "cam_col", "field_ID", "plate", "MJD", "fiber_ID"],
+  "metrics": {
+    "r2": 0.1727,
+    "adj_r2": 0.1719,
+    "rmse": 0.8521,
+    "mae": 0.6084
+  },
+  "coefficients": {
+    "b0_intercept": -10.7386,
+    "b1_alpha": 0,
+    "b2_delta": -0.0014,
+    "b3_u": 0.3806,
+    "b4_g": -0.4513,
+    "b5_r": -0.0181,
+    "b6_i": 0.1615,
+    "b7_z": 0.0707,
+    "b8_run_ID": -0,
+    "b9_cam_col": 0.0035,
+    "b10_field_ID": 8.94e-06,
+    "b11_plate": -0.0001,
+    "b12_MJD": 0.0002,
+    "b13_fiber_ID": 0.0001
+  },
+  "equation": "redshift = -10.73860930 + 0.00002107 * alpha - 0.00135465 * delta + 0.38055986 * u - 0.45130573 * g - 0.01809806 * r + 0.16145788 * i + 0.07073497 * z - 0.00001660 * run_ID + 0.00349287 * cam_col + 0.00000894 * field_ID - 0.00009864 * plate + 0.00017767 * MJD + 0.00012710 * fiber_ID"
+}

@@ -1,0 +1,22 @@
+{
+  "model_name": "MLR_GALAXY_5band",
+  "dataset": "dataset_GALAXY",
+  "feature_set": "5band",
+  "n_features": 5,
+  "features": ["u", "g", "r", "i", "z"],
+  "metrics": {
+    "r2": 0.7246,
+    "adj_r2": 0.7246,
+    "rmse": 0.1354,
+    "mae": 0.0834
+  },
+  "coefficients": {
+    "b0_intercept": -1.7817,
+    "b1_u": -0.0062,
+    "b2_g": 0.0239,
+    "b3_r": 0.1482,
+    "b4_i": -0.0145,
+    "b5_z": -0.0426
+  },
+  "equation": "redshift = -1.78174828 - 0.00620087 * u + 0.02393263 * g + 0.14824592 * r - 0.01452566 * i - 0.04263688 * z"
+}
