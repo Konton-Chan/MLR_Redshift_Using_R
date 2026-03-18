@@ -215,23 +215,75 @@ function animCount(el, target, dur=900) {
 }
 
 // ══════════════════════════════════════
-// MODEL COEFFICIENTS
-// Replace b0–b5 values with Colab Cell 39 output
 // ══════════════════════════════════════
-const MODELS = {
-  GALAXY: { name:'MLR_GALAXY_5band', r2:0.724614, rmse:0.135411, mae:0.0834,
-    b0:-1.78174828,  // Intercept
-    b1:-0.00620087,  // u
-    b2: 0.02393263,  // g
-    b3: 0.14824592,  // r
-    b4:-0.01452566,  // i
-    b5:-0.04263688   // z
-  },
-  QSO:    { name:'MLR_QSO_5band',    r2:.1436, rmse:.8522, mae:.6098,
-    b0:1.23456789, b1:.12345678, b2:.12345678, b3:.12345678, b4:.12345678, b5:.12345678 },
-  STAR:   { name:'MLR_STAR_5band',   r2:.0125, rmse:.000457, mae:.000284,
-    b0:0, b1:0, b2:0, b3:0, b4:0, b5:0 }
+// MODEL COEFFICIENTS — loaded from JSON files
+// ══════════════════════════════════════
+const MODEL_PATHS = {
+  GALAXY: 'Model/json/Galaxy/MLR_GALAXY_5band.json',
+  QSO:    'Model/json/QSO/MLR_QSO_5band.json',
+  STAR:   'Model/json/Star/MLR_STAR_5band.json',
 };
+
+// MODELS is populated on page load via loadModels()
+const MODELS = {
+  GALAXY: null,
+  QSO:    null,
+  STAR:   { name:'MLR_STAR_5band', r2:.0125, rmse:.000457, mae:.000284,
+            b0:0, b1:0, b2:0, b3:0, b4:0, b5:0 }  // STAR always z≈0
+};
+
+function parseModel(json) {
+  // Parse Colab Cell 39 JSON → internal model object
+  const c = json.coefficients;
+  return {
+    name : json.model_name,
+    r2   : json.metrics.r2,
+    rmse : json.metrics.rmse,
+    mae  : json.metrics.mae,
+    b0   : c.b0_intercept,
+    b1   : c.b1_u,
+    b2   : c.b2_g,
+    b3   : c.b3_r,
+    b4   : c.b4_i,
+    b5   : c.b5_z,
+  };
+}
+
+async function loadModels() {
+  const statusEl = document.getElementById('model-load-status');
+  const setStatus = (msg, ok) => {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.style.color = ok ? 'var(--star)' : '#fc8181';
+    statusEl.style.display = 'block';
+    if (ok) setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+  };
+
+  setStatus('⏳ Loading models...', true);
+
+  const results = await Promise.allSettled(
+    ['GALAXY', 'QSO'].map(async cls => {
+      const res  = await fetch(MODEL_PATHS[cls]);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      MODELS[cls] = parseModel(json);
+      return cls;
+    })
+  );
+
+  const failed = results
+    .filter(r => r.status === 'rejected')
+    .map((r, i) => ['GALAXY','QSO'][i]);
+
+  if (failed.length === 0) {
+    setStatus('✅ Models loaded', true);
+  } else {
+    setStatus(`⚠️ Could not load: ${failed.join(', ')} — check Model/json/ folder`, false);
+  }
+}
+
+// Load models when page is ready
+document.addEventListener('DOMContentLoaded', loadModels);
 
 let selectedClass = 'GALAXY';
 
@@ -255,6 +307,11 @@ function predict() {
   const inv = Object.entries({u,g,r,i,z}).filter(([,v])=>isNaN(v)||v<10||v>30).map(([k])=>k);
   if (inv.length > 0) {
     errEl.textContent = `⚠ Invalid band(s): ${inv.join(', ')}. Each must be 10 – 30.`;
+    errEl.style.display = 'block'; return;
+  }
+  // Guard: model not loaded yet
+  if (!MODELS[selectedClass]) {
+    errEl.textContent = '⏳ Model still loading — please wait a moment and try again.';
     errEl.style.display = 'block'; return;
   }
   const btn = document.getElementById('predict-btn');
