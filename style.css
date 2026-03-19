@@ -47,7 +47,6 @@ body::after {
 header {
   text-align: center; margin-bottom: clamp(32px, 5vw, 56px);
   animation: fadeDown 1s ease both; position: relative;
-  /* Clip orbit rings so they don't cause horizontal scroll */
   overflow: hidden;
   padding: 20px 0;
 }
@@ -55,7 +54,6 @@ header {
 .orbit-ring {
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  /* Use vmin so rings scale with viewport */
   width: min(440px, 90vmin); height: min(440px, 90vmin);
   border: 1px solid rgba(99,179,237,0.06);
   border-radius: 50%; animation: spin 30s linear infinite; pointer-events: none;
@@ -172,7 +170,6 @@ h1 {
 input[type="number"] {
   background: var(--bg3); border: 1.5px solid var(--border); border-radius: 8px;
   color: var(--text); font-family: 'Space Mono', monospace;
-  /* 16px minimum to prevent iOS auto-zoom */
   font-size: 16px;
   padding: clamp(8px, 2vw, 12px) clamp(6px, 1.5vw, 10px);
   width: 100%; outline: none; -moz-appearance: textfield; appearance: textfield;
@@ -183,7 +180,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; appe
 input[type="number"]:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(99,179,237,0.12);
-  /* Removed scale(1.03) — causes overflow on mobile */
 }
 .band-hint { font-size: 10px; color: var(--text-dim); font-family: 'Space Mono', monospace; }
 
@@ -204,14 +200,26 @@ input[type="number"]:focus {
   border-left: 5px solid transparent; border-right: 5px solid transparent;
   border-top: 6px solid var(--border-glow);
 }
+
+/* ══════════════════════════════════════
+   MASCOT IMAGE — GPU-accelerated smooth animation
+   - will-change: transform only (not filter) keeps it on its own
+     composited layer without triggering expensive filter recalcs
+   - translateZ(0) promotes the element to GPU immediately on load
+   - backface-visibility: hidden prevents flicker during scale
+══════════════════════════════════════ */
 .mascot-img {
   width: clamp(90px, 14vw, 140px);
   height: auto;
   image-rendering: auto;
-  will-change: transform, filter;
+  will-change: transform;
   transform-origin: center bottom;
-  /* animation driven by rAF JS for native refresh-rate smoothness */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
+
 @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
 
 /* ── Predict Button ── */
@@ -280,7 +288,6 @@ input[type="number"]:focus {
 /* ── Simulation Canvases ── */
 .sim-canvas {
   width: 100%; display: block; border-radius: 8px;
-  /* min-height prevents collapse before draw */
   min-height: 60px;
 }
 
@@ -322,13 +329,11 @@ footer a:hover { text-decoration: underline; }
   #cosmic-stats  { grid-template-columns: 1fr !important; }
   .orbit-ring, .orbit-ring-2 { display: none; }
 
-  /* Step02 header stacks on very small screens */
   .step02-header { flex-wrap: wrap; }
   .mascot-wrap   { order: -1; width: 100%; flex-direction: row; align-items: center; gap: 10px; margin-bottom: 8px; }
   .mascot-bubble { margin-bottom: 0; }
   .mascot-img    { width: 72px; }
 
-  /* Equation scrollable */
   .equation-text { font-size: 10px; }
 }
 
@@ -349,12 +354,10 @@ footer a:hover { text-decoration: underline; }
 }
 .doppler-info-line span { color: var(--text); font-weight: 700; }
 
-/* .doppler-slider-wrap and .doppler-slider-label removed — not used */
-/* ── Doppler Slider — matches strip above it (Hα colour journey z=0→5) ── */
+/* ── Doppler Slider ── */
 #doppler-slider {
   -webkit-appearance: none; appearance: none;
   width: 100%; height: 8px; border-radius: 100px;
-  /* Default: dark red gradient matching NIR/MIR strip (overridden by JS) */
   background: linear-gradient(90deg, #dc2200 0%, #550000 50%, #0a0000 100%);
   outline: none; cursor: pointer;
   border: 1px solid rgba(255,255,255,0.15);
