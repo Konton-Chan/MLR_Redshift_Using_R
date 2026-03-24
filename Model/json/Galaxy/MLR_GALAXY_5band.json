@@ -6,9 +6,14 @@
   "features": ["u", "g", "r", "i", "z"],
   "metrics": {
     "r2": 0.724614,
-    "adj_r2": 0.7246,
+    "adj_r2": 0.724586,
     "rmse": 0.135411,
-    "mae": 0.0834
+    "mae": 0.083353,
+    "residual_se": 0.13920465,
+    "df_residual": 47548,
+    "n_train": 47554,
+    "t_crit_95": 1.96001388,
+    "pi_half_width": 0.27284592
   },
   "coefficients": {
     "b0_intercept": -1.78174828,

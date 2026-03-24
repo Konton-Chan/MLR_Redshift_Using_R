@@ -225,18 +225,20 @@ const MODELS = {
 };
 
 function parseModel(json) {
-  const c = json.coefficients;
+  const c  = json.coefficients;
+  const m  = json.metrics;
   return {
-    name : json.model_name,
-    r2   : json.metrics.r2,
-    rmse : json.metrics.rmse,
-    mae  : json.metrics.mae,
-    b0   : c.b0_intercept,
-    b1   : c.b1_u,
-    b2   : c.b2_g,
-    b3   : c.b3_r,
-    b4   : c.b4_i,
-    b5   : c.b5_z,
+    name    : json.model_name,
+    r2      : m.r2,
+    rmse    : m.rmse,
+    mae     : m.mae,
+    pi_half : m.pi_half_width || null,  // exact PI half-width from R (added in Cell 26)
+    b0      : c.b0_intercept,
+    b1      : c.b1_u,
+    b2      : c.b2_g,
+    b3      : c.b3_r,
+    b4      : c.b4_i,
+    b5      : c.b5_z,
   };
 }
 
@@ -280,6 +282,130 @@ function selectClass(cls, el) {
   document.getElementById('error-msg').style.display = 'none';
 }
 
+// ══════════════════════════════════════
+// EXACT PI COMPUTATION
+// Replicates R's predict(..., interval='prediction')
+// Formula: pred +/- t(a/2, df) * sigma * sqrt(1 + x'(X'X)^-1 x)
+// Components exported from Colab Cell 26 into each model JSON.
+// ══════════════════════════════════════
+
+// t 97.5th percentile via Cornish-Fisher expansion
+function tQuantile975(df) {
+  if (!df || df >= 1e5) return 1.959964;
+  const z  = 1.959964;
+  const g1 = (Math.pow(z,3)+z) / (4*df);
+  const g2 = (5*Math.pow(z,5)+16*Math.pow(z,3)+3*z) / (96*df*df);
+  const g3 = (3*Math.pow(z,7)+19*Math.pow(z,5)+17*Math.pow(z,3)-15*z) / (384*df*df*df);
+  return z + g1 + g2 + g3;
+}
+
+// Compute x0'(X'X)^-1 x0 scalar
+function computeQuad(x0, XtXinv, p) {
+  let result = 0;
+  for (let i = 0; i < p; i++) {
+    let dot = 0;
+    for (let j = 0; j < p; j++) dot += XtXinv[i*p+j] * x0[j];
+    result += x0[i] * dot;
+  }
+  return result;
+}
+
+// Compute exact PI for a new observation
+function computeExactPI(m, u, g, r, i, z) {
+  const pred = m.b0 + m.b1*u + m.b2*g + m.b3*r + m.b4*i + m.b5*z;
+  if (!m.sigma || !m.dfResid || !m.XtXinv || !m.nParams) {
+    const half = 1.96 * m.rmse;
+    return { lower:pred-half, upper:pred+half, half, exact:false };
+  }
+  const x0   = [1, u, g, r, i, z];
+  const quad = computeQuad(x0, m.XtXinv, m.nParams);
+  const tVal = tQuantile975(m.dfResid);
+  const half = tVal * m.sigma * Math.sqrt(1 + quad);
+  return { lower:pred-half, upper:pred+half, half, exact:true };
+}
+
+// ══════════════════════════════════════
+// UPDATE 95% PREDICTION INTERVAL DISPLAY
+// ══════════════════════════════════════
+function updateCI(pred, m, cls, color, u, g, r, i, z) {
+  const ciBox = document.getElementById('ci-box');
+  if (!ciBox) return { lower:pred, upper:pred };
+
+  if (cls === 'STAR') {
+    document.getElementById('ci-lower').textContent      = '0.000000';
+    document.getElementById('ci-upper').textContent      = '0.000000';
+    document.getElementById('ci-lower-tick').textContent = '0.000000';
+    document.getElementById('ci-upper-tick').textContent = '0.000000';
+    document.getElementById('ci-width').textContent      = 'Width: 0.000000 (exact)';
+    document.getElementById('ci-note').textContent       = 'z = 0 by definition';
+    document.getElementById('ci-interp').textContent     = 'Stars have no cosmological redshift.';
+    document.getElementById('ci-interp').style.color     = 'var(--star)';
+    const oldNote = document.getElementById('ci-physics-note');
+    if (oldNote) oldNote.remove();
+    const fill   = document.getElementById('ci-fill');
+    const marker = document.getElementById('ci-marker');
+    if (fill)   { fill.style.left='0%'; fill.style.width='100%'; fill.style.background='var(--star)'; fill.style.opacity='0.25'; }
+    if (marker) { marker.style.left='50%'; marker.style.background='var(--star)'; marker.style.boxShadow='0 0 10px var(--star)'; }
+    ciBox.style.setProperty('--ci-color', 'var(--star)');
+    return { lower:0, upper:0 };
+  }
+
+  // Use pi_half from JSON directly (exported in Cell 26)
+  // Fall back to 1.96 x RMSE approximation if pi_half is unavailable
+  const useExact = m.pi_half !== null && m.pi_half !== undefined;
+  const half     = useExact ? m.pi_half : 1.96 * m.rmse;
+  const lower    = pred - half;
+  const upper    = pred + half;
+  const width    = upper - lower;
+
+  document.getElementById('ci-lower').textContent      = lower.toFixed(6);
+  document.getElementById('ci-upper').textContent      = upper.toFixed(6);
+  document.getElementById('ci-lower-tick').textContent = lower.toFixed(4);
+  document.getElementById('ci-upper-tick').textContent = upper.toFixed(4);
+  document.getElementById('ci-note').textContent = useExact
+    ? 't(0.975, df) × σ × √(1 + 1/n)  — exact'
+    : '+/- 1.96 × RMSE (approx. — re-run Cell 26)';
+  document.getElementById('ci-width').textContent = 'Width: ' + width.toFixed(6);
+
+  const interpEl = document.getElementById('ci-interp');
+  if (cls === 'GALAXY') {
+    interpEl.textContent = 'GALAXY model is strong (R\u00b2=0.74). Prediction is reliable.';
+    interpEl.style.color = 'var(--star)';
+  } else {
+    interpEl.textContent = 'QSO model is weak (R\u00b2=0.14). Wide interval \u2014 use with caution.';
+    interpEl.style.color = 'var(--galaxy)';
+  }
+
+  const oldNote = document.getElementById('ci-physics-note');
+  if (oldNote) oldNote.remove();
+  if (lower < 0) {
+    const noteEl = document.createElement('div');
+    noteEl.id = 'ci-physics-note';
+    noteEl.innerHTML =
+      '<strong>\u26a0 Physical note:</strong> The lower bound (' + lower.toFixed(6) + ') is negative. ' +
+      'In astrophysics, z &lt; 0 indicates blueshift (object moving toward us), ' +
+      'which is physically valid but outside the SDSS training data range (z \u2265 0). ' +
+      'This negative value reflects the model\u2019s statistical uncertainty, not a prediction error. ' +
+      'For practical purposes, interpret the lower bound as z \u2248 0.';
+    noteEl.style.cssText =
+      'margin-top:12px;padding:12px 14px;border-radius:10px;' +
+      'background:rgba(99,179,237,0.06);border:1px solid rgba(99,179,237,0.25);' +
+      'font-family:"Space Mono",monospace;font-size:10px;line-height:1.7;color:var(--text-dim);';
+    const widthRow = document.querySelector('.ci-width-row');
+    if (widthRow) widthRow.after(noteEl);
+  }
+
+  const fill   = document.getElementById('ci-fill');
+  const marker = document.getElementById('ci-marker');
+  if (fill)   { fill.style.left='0%'; fill.style.width='100%'; fill.style.background=color; fill.style.opacity='0.25'; }
+  if (marker) { marker.style.left='50%'; marker.style.background=color; marker.style.boxShadow='0 0 10px '+color; }
+  ciBox.style.setProperty('--ci-color', color);
+  return { lower, upper };
+}
+
+// ══════════════════════════════════════
+// PREDICT
+// ══════════════════════════════════════
 function predict() {
   const errEl = document.getElementById('error-msg');
   errEl.style.display = 'none';
@@ -306,6 +432,7 @@ function predict() {
     btn.innerHTML = '<span>✦ &nbsp; Predict Redshift</span>'; btn.classList.remove('loading');
     const m = MODELS[selectedClass];
     let pred = 0, eqStr = '';
+
     if (selectedClass === 'STAR') {
       pred  = 0;
       eqStr = `<span class="eq-highlight">redshift</span> = 0.000000<br>
@@ -321,14 +448,25 @@ function predict() {
         &nbsp;&nbsp;&nbsp; ${fmt(m.b5)} × z (${z})<br>
         &nbsp;&nbsp;&nbsp; = <span class="eq-highlight">${pred.toFixed(6)}</span>`;
     }
-    const colors = {GALAXY:'var(--galaxy)',QSO:'var(--qso)',STAR:'var(--star)'};
-    const resEl  = document.getElementById('result-value');
+
+    const colors   = { GALAXY:'var(--galaxy)', QSO:'var(--qso)', STAR:'var(--star)' };
+    const colorHex = { GALAXY:'#f6ad55',       QSO:'#63b3ed',   STAR:'#68d391'     };
+
+    const resEl = document.getElementById('result-value');
     resEl.style.color = colors[selectedClass];
     animCount(resEl, pred);
+
     document.getElementById('res-class').textContent  = selectedClass;
     document.getElementById('res-r2').textContent     = m.r2.toFixed(4);
     document.getElementById('res-rmse').textContent   = m.rmse.toFixed(4);
     document.getElementById('res-equation').innerHTML = eqStr;
+
+    // ── Update 95% Prediction Interval ──
+    // Update PI — pass full model object + band values for exact computation
+    const piResult = updateCI(pred, m, selectedClass, colorHex[selectedClass], u, g, r, i, z);
+    const piHalf   = piResult ? (piResult.upper - pred) : 1.96 * m.rmse;
+
+    // ── Warning banners ──
     let warnHTML = '';
     if (selectedClass === 'GALAXY') {
       if (pred < 0 || pred > 2) {
@@ -355,7 +493,7 @@ function predict() {
     }
     document.getElementById('res-warning').innerHTML = warnHTML;
     document.getElementById('result-panel').style.display = 'block';
-    runSimulation(pred, [u,g,r,i,z]);
+    runSimulation(pred, [u,g,r,i,z], piHalf);
   }, 650);
 }
 
@@ -473,29 +611,28 @@ function wlPhysColour(wl) {
   }
 }
 
-function stripPhysColour(wl, wlMin, wlMax) {
-  const raw    = wlPhysColour(wl);
-  const rawLum = Math.max(...raw);
-  const lumMin = Math.max(...wlPhysColour(wlMin));
-  const lumMax = Math.max(...wlPhysColour(wlMax));
-  const lumLo  = Math.min(lumMin, lumMax);
-  const lumHi  = Math.max(lumMin, lumMax);
-  const lumSpan = lumHi - lumLo;
-  let stretchedLum;
-  if (lumSpan < 15) {
-    const pos = (wl - wlMin) / (wlMax - wlMin || 1);
-    stretchedLum = Math.round(220 - pos * 180);
+// ── Strip colour: direct spectral colour, no brightness stretching ──
+// Visible range (≤7500 Å): exact spectral colour from wl2rgb
+// NIR (7500–14000 Å): bright red fading to dark red (220→60)
+// MIR (14000–50000 Å): dark red fading to very dark (60→18)
+// FIR (>50000 Å): near black
+// This gives perceptually correct, naturally varying colours with
+// no artificial contrast distortion.
+function stripColour(wl) {
+  if (wl <= 7500) {
+    // Exact spectral colour — handles UV, visible, and transition to NIR
+    return wl2rgb(wl);
+  } else if (wl <= 14000) {
+    // NIR: smooth bright-red to dark-red transition
+    const t = (wl - 7500) / (14000 - 7500);
+    return [Math.round(220 - t * 160), Math.round(8 - t * 8), 0];
+  } else if (wl <= 50000) {
+    // MIR: dark red fading further
+    const t = (wl - 14000) / (50000 - 14000);
+    return [Math.round(60 - t * 42), 0, 0];
   } else {
-    stretchedLum = Math.round(30 + ((rawLum - lumLo) / lumSpan) * 200);
+    return [18, 0, 0];
   }
-  stretchedLum = Math.max(0, Math.min(255, stretchedLum));
-  if (rawLum === 0) return [stretchedLum, 0, 0];
-  const scale = stretchedLum / rawLum;
-  return [
-    Math.min(255, Math.round(raw[0] * scale)),
-    Math.min(255, Math.round(raw[1] * scale)),
-    Math.min(255, Math.round(raw[2] * scale)),
-  ];
 }
 
 function zHaColour(z) {
@@ -522,7 +659,7 @@ function updateDopplerUI(z) {
   swatch.style.background = `rgb(${sr},${sg},${sb})`;
   swatch.style.boxShadow  = `0 0 28px rgba(${sr},${sg},${sb},0.7), 0 0 6px rgba(0,0,0,0.5)`;
   swatch.innerHTML = '';
-  document.getElementById('di-z').textContent   = z.toFixed(4);
+  document.getElementById('di-z').textContent   = z.toFixed(6);
   document.getElementById('di-obs').textContent = Math.round(obsWl) + ' Å';
   const regionEl = document.getElementById('di-region');
   regionEl.textContent = wlRegion(obsWl);
@@ -581,10 +718,13 @@ function updateSliderTrack() {
   const slider = document.getElementById('doppler-slider');
   if (!slider) return;
   const steps = 20, gradStops = [];
+  // Match the strip exactly: same wlStrip0 clamp and stripColour function
+  const wl0 = Math.max(3800, 6563*(1+dopplerSliderMin));
+  const wl1 = 6563*(1+dopplerSliderMax);
   for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const z_t = dopplerSliderMin + t * (dopplerSliderMax - dopplerSliderMin);
-    const [r,g,b] = zHaColour(z_t);
+    const t    = i / steps;
+    const wl   = wl0 + t * (wl1 - wl0);
+    const [r,g,b] = stripColour(wl);
     gradStops.push(`rgb(${r},${g},${b}) ${(t*100).toFixed(1)}%`);
   }
   slider.style.background = `linear-gradient(90deg, ${gradStops.join(', ')})`;
@@ -597,25 +737,35 @@ function drawDoppler(z) {
   const W=canvas.offsetWidth, H=canvas.offsetHeight;
   const zMin=dopplerSliderMin, zMax=dopplerSliderMax, zSpan=zMax-zMin||1;
   ctx.clearRect(0,0,W,H);
-  const wlStrip0 = 6563*(1+Math.max(0,zMin));
-  const wlStrip1 = 6563*(1+Math.max(0,zMax));
+
+  // ── Strip wavelength range ──
+  // Clamp wlStrip0 to 3800 Å (visible UV start) so the strip never shows
+  // as pure black even when the PI lower bound is deep negative (e.g. QSO ±1.67).
+  // This keeps the colour gradient meaningful across the full strip width.
+  const wlStrip0 = Math.max(3800, 6563*(1+zMin));
+  const wlStrip1 = 6563*(1+zMax);
   const wlStripSpan = wlStrip1-wlStrip0||1;
   for (let x=0; x<W; x++) {
     const wl = wlStrip0+(x/W)*wlStripSpan;
-    const [sr,sg,sb] = stripPhysColour(wl,wlStrip0,wlStrip1);
+    const [sr,sg,sb] = stripColour(wl);
     ctx.fillStyle=`rgb(${sr},${sg},${sb})`; ctx.fillRect(x,0,1,H);
   }
   const nTicks=5;
   const decimals=zSpan<0.5?4:zSpan<2?3:zSpan<10?2:1;
+  // Reuse same negative-zero fix for canvas tick labels
+  const fmtTick = v => {
+    const s = v.toFixed(decimals);
+    return s.startsWith('-') && parseFloat(s) === 0 ? s.slice(1) : s;
+  };
   for (let i=0; i<=nTicks; i++) {
     const t=i/nTicks, zTick=zMin+t*zSpan;
     const tx=Math.max(1,Math.min(W-1,t*W));
-    const labelX=Math.max(18,Math.min(W-18,tx));
-    const label='z='+zTick.toFixed(decimals);
+    const label='z='+fmtTick(zTick);
     ctx.font='bold 8px "Space Mono"';
     const tw=ctx.measureText(label).width;
+    const ph=12, pw=tw+8;
+    const labelX=Math.max(pw/2+2, Math.min(W-pw/2-2, tx));
     ctx.fillStyle='rgba(0,0,0,0.65)'; ctx.beginPath();
-    const ph=12,pw=tw+8;
     if(ctx.roundRect) ctx.roundRect(labelX-pw/2,H-ph-1,pw,ph,3);
     else ctx.rect(labelX-pw/2,H-ph-1,pw,ph);
     ctx.fill();
@@ -625,24 +775,48 @@ function drawDoppler(z) {
     ctx.fillText(label,labelX,H-3);
   }
   const boundaries=[
-    {z:(7500/6563-1),label:'VIS→NIR'},
-    {z:(14000/6563-1),label:'NIR→MIR'},
-    {z:(50000/6563-1),label:'MIR→FIR'},
+    {z:(6250/6563-1),  label:'YLW→RED', col:'rgba(255,200,80,0.6)'},   // Yellow/Orange → Red
+    {z:(7500/6563-1),  label:'VIS→NIR', col:'rgba(255,255,255,0.5)'},   // Red → Near IR
+    {z:(14000/6563-1), label:'NIR→MIR', col:'rgba(255,255,255,0.5)'},   // Near → Mid IR
+    {z:(50000/6563-1), label:'MIR→FIR', col:'rgba(255,255,255,0.5)'},   // Mid → Far IR
   ];
   boundaries.forEach(b => {
     if(b.z<zMin||b.z>zMax) return;
     const bx=((b.z-zMin)/zSpan)*W;
-    ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=1; ctx.setLineDash([2,3]);
-    ctx.beginPath(); ctx.moveTo(bx,0); ctx.lineTo(bx,H); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle=b.col; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(bx,0); ctx.lineTo(bx,H); ctx.stroke();
+    ctx.setLineDash([]);
   });
   ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(0,0,W,H);
   const zToX = zv => Math.max(1,Math.min(W-1,((zv-zMin)/zSpan)*W));
-  if (dopplerPredictedZ > 0) {
-    const px=zToX(dopplerPredictedZ);
-    ctx.setLineDash([4,5]); ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1.5;
-    ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,H); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font='7px "Space Mono"'; ctx.textAlign='center';
-    ctx.fillText('▲ z='+dopplerPredictedZ.toFixed(2),Math.min(Math.max(px,28),W-28),H-3);
+
+  // ── Predicted z marker line ──
+  const px = zToX(dopplerPredictedZ);
+
+  // Soft glow halo
+  const predGrd = ctx.createLinearGradient(px-10, 0, px+10, 0);
+  predGrd.addColorStop(0,   'rgba(255,255,255,0)');
+  predGrd.addColorStop(0.5, 'rgba(255,255,255,0.22)');
+  predGrd.addColorStop(1,   'rgba(255,255,255,0)');
+  ctx.fillStyle = predGrd;
+  ctx.fillRect(px-10, 0, 20, H);
+
+  // Solid white line with glow
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+  ctx.lineWidth   = 2.5;
+  ctx.setLineDash([]);
+  ctx.shadowColor = '#ffffff';
+  ctx.shadowBlur  = 8;
+  ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+  ctx.shadowBlur  = 0;
+  ctx.setLineDash([]);
+
+  // ── Position HTML pill label directly above the line ──
+  const predLabelEl = document.getElementById('doppler-pred-label');
+  if (predLabelEl) {
+    predLabelEl.style.display = 'block';
+    predLabelEl.style.left    = px + 'px';
+    predLabelEl.textContent   = '▲ Predicted z = ' + dopplerPredictedZ.toFixed(6);
   }
   const obsWl=6563*(1+z), mx=zToX(z);
   const [cr,cg,cb]=wlPhysColour(obsWl);
@@ -655,10 +829,15 @@ function drawDoppler(z) {
   ctx.fillStyle='#fff';
   ctx.beginPath(); ctx.moveTo(mx,0); ctx.lineTo(mx-7,10); ctx.lineTo(mx+7,10); ctx.closePath(); ctx.fill();
   updateSliderTrack();
-  const axisDecimals=zSpan<1?4:zSpan<5?3:2;
-  document.getElementById('doppler-label').textContent    = 'z = '+z.toFixed(axisDecimals);
-  document.getElementById('doppler-axis-min').textContent = 'z = '+zMin.toFixed(axisDecimals)+' ◀';
-  document.getElementById('doppler-axis-max').textContent = '▶ z = '+zMax.toFixed(axisDecimals);
+  const axisDecimals = zSpan<1?4:zSpan<5?3:2;
+  // FIX: strip leading minus when formatted string is "-0.000..." (negative zero display)
+  const fmtZ = v => {
+    const s = v.toFixed(axisDecimals);
+    return s.startsWith('-') && parseFloat(s) === 0 ? s.slice(1) : s;
+  };
+  document.getElementById('doppler-label').textContent    = 'z = ' + fmtZ(z);
+  document.getElementById('doppler-axis-min').textContent = 'z = ' + fmtZ(zMin) + ' ◀';
+  document.getElementById('doppler-axis-max').textContent = '▶ z = ' + fmtZ(zMax);
   const wlRangeEl=document.getElementById('doppler-wl-range');
   if (wlRangeEl) {
     const wl0=Math.round(6563*(1+zMin)),wl1=Math.round(6563*(1+zMax));
@@ -687,6 +866,18 @@ function stopDopplerAnim() {
   document.getElementById('doppler-anim-btn').classList.remove('playing');
   document.getElementById('doppler-anim-icon').textContent = '▶';
   document.getElementById('doppler-anim-label').textContent = 'Animate z: '+dopplerSliderMin.toFixed(2)+' → '+dopplerSliderMax.toFixed(2);
+}
+
+// ── Reset slider back to the predicted z value ──
+// Called by the Reset button — snaps slider and display
+// back to whatever z was returned by the model.
+function resetDopplerToPredicted() {
+  stopDopplerAnim();
+  const slider = document.getElementById('doppler-slider');
+  if (slider) {
+    slider.value = dopplerPredictedZ.toFixed(6);
+  }
+  drawDoppler(dopplerPredictedZ);
 }
 
 function animateDoppler() {
@@ -756,7 +947,8 @@ function drawSpectral(z) {
   const ctx=getScaledCtx(canvas);
   const W=canvas.offsetWidth,H=canvas.offsetHeight;
   const isMobile=W<500;
-  const pad={l:isMobile?44:60,r:16,t:34,b:isMobile?40:50};
+  // Extra bottom padding to fit larger band labels below the baseline
+  const pad={l:isMobile?44:60,r:16,t:34,b:isMobile?52:64};
   const cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle='rgba(7,13,26,0.92)'; ctx.fillRect(0,0,W,H);
@@ -772,8 +964,14 @@ function drawSpectral(z) {
     const x=xP(b[1]);
     ctx.globalAlpha=0.12; ctx.fillStyle=b[2]; ctx.fillRect(x-20,pad.t,40,cH);
     ctx.globalAlpha=1;
-    ctx.fillStyle=b[2]; ctx.font=`bold ${isMobile?8:10}px "Space Mono"`; ctx.textAlign='center';
-    ctx.fillText(b[0],x,pad.t+cH+(isMobile?12:16));
+    // Band name — sits immediately below the baseline (red line)
+    const nameSize = isMobile ? 11 : 16;
+    const wlSize   = isMobile ?  9 : 12;
+    ctx.fillStyle=b[2]; ctx.font=`bold ${nameSize}px "Space Mono"`; ctx.textAlign='center';
+    ctx.fillText(b[0]+' BAND', x, pad.t+cH+nameSize+2);
+    // Wavelength — one line below the band name
+    ctx.fillStyle='rgba(226,232,244,0.55)'; ctx.font=`${wlSize}px "Space Mono"`;
+    ctx.fillText(b[1]+'Å', x, pad.t+cH+nameSize+wlSize+6);
   });
   ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(pad.l,pad.t+cH); ctx.lineTo(pad.l+cW,pad.t+cH); ctx.stroke();
@@ -867,42 +1065,60 @@ function drawCosmic(z) {
   }
 }
 
-function runSimulation(z, mags) {
+function runSimulation(z, mags, piHalf) {
   simData=({z,mags}); dopplerPredictedZ=z; stopDopplerAnim();
-  const delta=calcDelta(z);
-  dopplerSliderMin=Math.max(0,z-delta); dopplerSliderMax=z+delta;
+
+  // Slider range = exact PI bounds from JSON
+  // piHalf = t(0.975, df) x sigma x sqrt(1 + 1/n), passed from predict()
+  // Do NOT multiply by 1.96 again — use the value directly
+  const half = (piHalf !== undefined && piHalf > 0) ? piHalf : calcDelta(z);
+  dopplerSliderMin = z - half;
+  dopplerSliderMax = z + half;
+
   const slider=document.getElementById('doppler-slider');
   if(slider){
-    slider.min=dopplerSliderMin.toFixed(6); slider.max=dopplerSliderMax.toFixed(6);
-    slider.step=(delta/250).toFixed(6); slider.value=z.toFixed(6);
+    // Set min/max before value — some browsers reset thumb to min when range changes
+    slider.min   = dopplerSliderMin.toFixed(6);
+    slider.max   = dopplerSliderMax.toFixed(6);
+    slider.step  = (half / 250).toFixed(6);
+    slider.value = z.toFixed(6);
+    // Force value again on next animation frame to prevent browser override
+    requestAnimationFrame(() => { slider.value = z.toFixed(6); });
   }
   const animLabel=document.getElementById('doppler-anim-label');
   if(animLabel) animLabel.textContent='Animate z: '+dopplerSliderMin.toFixed(2)+' → '+dopplerSliderMax.toFixed(2);
+
+  // Update reset button label to show the predicted z
+  const resetLabel=document.getElementById('doppler-reset-label');
+  if(resetLabel) resetLabel.textContent='Reset to z = '+z.toFixed(6);
   updateSliderTrack();
   const panel=document.getElementById('sim-panel');
   panel.style.display='block';
-  setTimeout(()=>{drawDoppler(z);drawSED(mags);drawSpectral(z);drawCosmic(z);},250);
+  // Always draw all canvases at predicted z on first open
+  setTimeout(() => {
+    // Re-set slider value after DOM update to ensure correct thumb position
+    const s = document.getElementById('doppler-slider');
+    if (s) s.value = z.toFixed(6);
+    drawDoppler(z);
+    drawSED(mags);
+    drawSpectral(z);
+    drawCosmic(z);
+  }, 250);
   setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'start'}),100);
 }
 
 // ══════════════════════════════════════════════
-// MASCOT — requestAnimationFrame sine animator
-//
-// FIX: drop-shadow is now FIXED (not animated).
-// Animating filter every rAF frame forces CPU repaint
-// and prevents GPU compositing — causes jank on mobile.
-// Fixed drop-shadow = only transform is animated,
-// which is the cheapest GPU compositing operation.
+// MASCOT — GPU-accelerated sine float
+// Fixed drop-shadow so only transform is animated
 // ══════════════════════════════════════════════
 (function() {
   const img = document.querySelector('.mascot-img');
   if (!img) return;
 
-  const FLOAT_AMP  = 13;    // px up/down travel
-  const FLOAT_FREQ = 0.55;  // Hz
-  const SCALE_AMP  = 0.018; // ±1.8%
+  const FLOAT_AMP  = 13;
+  const FLOAT_FREQ = 0.55;
+  const SCALE_AMP  = 0.018;
 
-  // Set drop-shadow ONCE — never animates, stays cached on GPU layer
   img.style.filter =
     'drop-shadow(0 8px 16px rgba(99,179,237,0.30))' +
     ' drop-shadow(0 0 8px rgba(99,179,237,0.15))';
@@ -916,7 +1132,6 @@ function runSimulation(z, mags) {
     const s01 = (s + 1) / 2;
     const ty  = -s01 * FLOAT_AMP;
     const sc  = 1 + s01 * SCALE_AMP;
-    // translateZ(0) keeps element on its GPU compositing layer every frame
     img.style.transform = `translateZ(0) translateY(${ty.toFixed(3)}px) scale(${sc.toFixed(4)})`;
     requestAnimationFrame(tick);
   }

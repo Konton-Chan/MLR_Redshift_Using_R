@@ -6,7 +6,6 @@
   <title>Redshift Predictor — SDSS MLR</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
-
 </head>
 <body>
 
@@ -95,9 +94,51 @@
   <!-- Result -->
   <div id="result-panel">
     <div class="result-inner">
+
       <div class="result-label">Predicted Redshift (z)</div>
       <div class="result-value" id="result-value">—</div>
       <div class="result-unit">dimensionless · cosmological redshift</div>
+
+      <!-- ══ 95% Prediction Interval ══ -->
+      <div class="ci-box" id="ci-box">
+        <div class="ci-header">
+          <span class="ci-title">95% Prediction Interval</span>
+          <span class="ci-note" id="ci-note">± 1.96 × RMSE (approx.)</span>
+        </div>
+
+        <!-- Visual range bar -->
+        <div class="ci-bar-row">
+          <div class="ci-bound-block">
+            <div class="ci-bound-label">Lower</div>
+            <div class="ci-bound-value" id="ci-lower">—</div>
+          </div>
+
+          <div class="ci-track-wrap">
+            <div class="ci-track">
+              <div class="ci-fill" id="ci-fill"></div>
+              <div class="ci-marker" id="ci-marker"></div>
+            </div>
+            <div class="ci-track-labels">
+              <span id="ci-lower-tick">—</span>
+              <span class="ci-track-center-label">Predicted z</span>
+              <span id="ci-upper-tick">—</span>
+            </div>
+          </div>
+
+          <div class="ci-bound-block ci-bound-block-right">
+            <div class="ci-bound-label">Upper</div>
+            <div class="ci-bound-value" id="ci-upper">—</div>
+          </div>
+        </div>
+
+        <!-- Width chip -->
+        <div class="ci-width-row">
+          <span class="ci-width-chip" id="ci-width">Width: —</span>
+          <span class="ci-interp" id="ci-interp"></span>
+        </div>
+      </div>
+      <!-- ══ end PI ══ -->
+
       <div class="result-grid">
         <div class="result-stat"><div class="stat-label">Class</div><div class="stat-value" id="res-class">—</div></div>
         <div class="result-stat"><div class="stat-label">Model R²</div><div class="stat-value" id="res-r2">—</div></div>
@@ -123,10 +164,7 @@
         the swatch shows the true colour. Lighter = shorter wavelength, darker = longer.
       </p>
 
-      <!-- TOP ROW: Big swatch + 4 stat boxes -->
       <div style="display:flex;gap:16px;align-items:center;margin-bottom:20px;flex-wrap:wrap;">
-
-        <!-- Swatch -->
         <div style="text-align:center;flex-shrink:0;">
           <div id="doppler-swatch"
             style="width:clamp(64px,10vw,90px);height:clamp(64px,10vw,90px);
@@ -143,7 +181,6 @@
             border:1px solid rgba(255,255,255,0.15);"></div>
         </div>
 
-        <!-- 4 info chips in a 2×2 grid -->
         <div style="flex:1;min-width:220px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;">
             <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px;">Redshift z</div>
@@ -164,10 +201,20 @@
         </div>
       </div>
 
-      <!-- Spectrum strip -->
-      <canvas id="doppler-canvas" class="sim-canvas" style="height:52px;border-radius:8px;cursor:pointer;"></canvas>
+      <!-- Canvas wrapper: position:relative + margin-top:28px reserves space for the pill label -->
+      <div style="position:relative; margin-top:44px;">
+        <div id="doppler-pred-label" style="
+          position:absolute; bottom:calc(100% + 4px);
+          transform:translateX(-50%);
+          font-family:'Space Mono',monospace; font-size:10px; font-weight:700;
+          color:#0a1020; background:rgba(255,255,255,0.93);
+          border-radius:6px; padding:3px 10px; white-space:nowrap;
+          pointer-events:none; z-index:10;
+          box-shadow:0 2px 8px rgba(0,0,0,0.5);
+          display:none;">▲ Predicted z = —</div>
+        <canvas id="doppler-canvas" class="sim-canvas" style="height:52px;border-radius:8px;cursor:pointer;"></canvas>
+      </div>
 
-      <!-- z axis labels below strip -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:5px;font-family:'Space Mono',monospace;font-size:10px;color:var(--text-dim);">
         <span id="doppler-axis-min">z = 0</span>
         <span style="display:flex;flex-direction:column;align-items:center;gap:2px;">
@@ -177,11 +224,9 @@
         <span id="doppler-axis-max">z = 5</span>
       </div>
 
-      <!-- Slider + Animate button -->
       <div style="display:flex;align-items:center;gap:12px;margin-top:14px;">
         <input type="range" id="doppler-slider" min="0" max="5" step="0.001" value="0"
-          oninput="onDopplerSlide(this.value)"
-          style="flex:1;" />
+          oninput="onDopplerSlide(this.value)" style="flex:1;" />
         <button id="doppler-anim-btn" onclick="toggleDopplerAnim()"
           style="flex-shrink:0;background:var(--bg3);border:1.5px solid rgba(99,179,237,0.4);
                  border-radius:8px;color:var(--qso);font-family:'Space Mono',monospace;
@@ -190,15 +235,21 @@
           <span id="doppler-anim-icon">▶</span>
           <span id="doppler-anim-label">Animate z: 0 → 5</span>
         </button>
+        <button onclick="resetDopplerToPredicted()"
+          style="flex-shrink:0;background:var(--bg3);border:1.5px solid rgba(104,211,145,0.4);
+                 border-radius:8px;color:var(--star);font-family:'Space Mono',monospace;
+                 font-size:10px;padding:8px 14px;cursor:pointer;white-space:nowrap;
+                 transition:all 0.2s ease;display:flex;align-items:center;gap:6px;">
+          <span>⟳</span>
+          <span id="doppler-reset-label">Reset to Predicted z</span>
+        </button>
       </div>
 
-      <!-- Out-of-range note (shown below slider when predicted z > 5) -->
       <div id="doppler-range-note" style="display:none;background:rgba(99,179,237,0.07);
         border:1px solid rgba(99,179,237,0.25);border-radius:8px;padding:10px 14px;
         font-family:'Space Mono',monospace;font-size:10px;color:var(--qso);
         line-height:1.6;margin-top:12px;"></div>
 
-      <!-- Notable lines at current z -->
       <div style="margin-top:16px;">
         <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Key emission lines at current z</div>
         <div id="doppler-lines" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
@@ -221,7 +272,7 @@
       <div class="card-label">④ Cosmic Distance Estimation</div>
       <div id="cosmic-stats" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px;"></div>
       <canvas id="cosmic-canvas" class="sim-canvas" style="height:110px;border-radius:8px;"></canvas>
-      <p style="font-size:10px;color:var(--text-dim);font-family:'Space Mono',monospace;margin-top:8px;">'* d ≈ (c/H0)×z, H0=70 km/s/Mpc. Light travel time via ΛCDM approximation.'</p>
+      <p style="font-size:10px;color:var(--text-dim);font-family:'Space Mono',monospace;margin-top:8px;">* d ≈ (c/H0)×z, H0=70 km/s/Mpc. Light travel time via ΛCDM approximation.</p>
     </div>
   </div>
 
@@ -250,9 +301,8 @@
   <footer>
     <div>SDSS Star Classification · Multiple Linear Regression · Redshift Prediction</div>
     <div>Model trained on 99,992 clean observations · Random seed 64 · 80/20 split</div>
-    <div style="margin-top:8px;">Built with R · Analyzed in Google Colab</a></div>
+    <div style="margin-top:8px;">Built with R · Analyzed in Google Colab</div>
     <div style="margin-top:5px;"><a href="https://github.com/Konton-Chan/MLR_Redshift_Using_R.git" target="_blank">By: Konton_Chan · View on GitHub ↗</a></div>
-  </footer>
   </footer>
 
 </div><!-- /wrapper -->

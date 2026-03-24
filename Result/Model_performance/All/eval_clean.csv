@@ -1,5 +1,5 @@
-"Dataset","Model","Set","R2","Adj_R2","RMSE","MAE","MAPE","N"
-"dataset_clean","MLR_clean_all","Train",0.289747,0.289631,0.617176,0.363478,Inf,79993
-"dataset_clean","MLR_clean_all","Test",0.289849,0.289387,0.61024,0.362378,Inf,19999
-"dataset_clean","MLR_clean_5band","Train",0.280485,0.28044,0.621187,0.367742,Inf,79993
-"dataset_clean","MLR_clean_5band","Test",0.279539,0.279358,0.614654,0.365877,Inf,19999
+"Dataset","Model","Set","R2","Adj_R2","RMSE","MAE","SMAPE","N"
+"dataset_clean","MLR_clean_all","Train",0.289747,0.289631,0.617176,0.363478,82.4483,79993
+"dataset_clean","MLR_clean_all","Test",0.289849,0.289387,0.61024,0.362378,83.3325,19999
+"dataset_clean","MLR_clean_5band","Train",0.280485,0.28044,0.621187,0.367742,82.1312,79993
+"dataset_clean","MLR_clean_5band","Test",0.279539,0.279358,0.614654,0.365877,82.9256,19999
