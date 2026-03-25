@@ -11,7 +11,7 @@
 <br/>
 
 [![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-GitHub_Pages-63b3ed?style=for-the-badge&logoColor=white)](https://konton-chan.github.io/MLR_Redshift_Using_R/)
-[![Notebook](https://img.shields.io/badge/📓_Notebook-Google_Colab-f9ab00?style=for-the-badge&logo=googlecolab&logoColor=white)](https://colab.research.google.com)
+[![Notebook](https://img.shields.io/badge/📓_Notebook-Google_Colab-f9ab00?style=for-the-badge&logo=googlecolab&logoColor=white)](https://colab.research.google.com/github/Konton-Chan/MLR_Redshift_Using_R/blob/main/Redshift_MLR.ipynb)
 [![Language](https://img.shields.io/badge/R-276DC3?style=for-the-badge&logo=r&logoColor=white)](https://www.r-project.org/)
 [![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-68d391?style=for-the-badge)](LICENSE)
@@ -217,11 +217,11 @@ TOTAL                                        99,992  (100%)
 
 | Band | Central λ | Spectral Region | Valid Input Range |
 |:----:|:---------:|:---------------:|:----------------:|
-| **u** | 3551 Å | Near UV | 10 – 30 mag |
+| **u** | 3551 Å | Ultraviolet | 10 – 30 mag |
 | **g** | 4686 Å | Blue / Green | 10 – 30 mag |
 | **r** | 6165 Å | Red | 10 – 30 mag |
 | **i** | 7481 Å | Near Infrared | 10 – 30 mag |
-| **z** | 8931 Å | Near Infrared | 10 – 30 mag |
+| **z** | 8931 Å | Infrared | 10 – 30 mag |
 
 ### Data Cleaning
 
